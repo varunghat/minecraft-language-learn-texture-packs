@@ -16,6 +16,7 @@ a placeholder -- missing coverage should be obvious, not silently wrong.
 Usage:
     python generate_pack.py --language de_de --version 1.21.4
     python generate_pack.py --language es_es --version 1.20.6
+    python generate_pack.py --language ja_jp --version 1.21.4 --font fonts/NotoSansJP.ttf
 """
 
 import argparse
@@ -41,15 +42,17 @@ KNOWN_PACK_FORMATS = {
 
 ROOT = Path(__file__).parent
 
-# Preference order; first candidate that exists on disk wins.
+# Default preference order; first candidate that exists on disk wins. --font
+# on the CLI is inserted at the front of this list at runtime, so it always
+# takes priority when given (see main()).
 # - fonts/Monocraft.ttf: drop in Monocraft (github.com/IdreesInc/Monocraft), a
 #   monospace font designed to match Minecraft's own typeface, for the closest
 #   in-game look. Not bundled here (binary asset, needs a manual download).
 # - Everything else is a monospace TTF that ships with Windows, so the pack
 #   generates something reasonable with zero setup. All of them cover Latin
 #   scripts including most accented/umlauted characters. They do NOT cover
-#   CJK, Cyrillic, Arabic, etc. -- non-Latin languages need a different font
-#   dropped into fonts/ (tracked as follow-up work, not done yet).
+#   CJK, Cyrillic, Kannada, Arabic, etc. -- for those, pass --font pointing at
+#   a font that does (see fonts/README.md for where to get one).
 FONT_CANDIDATES = [
     str(ROOT / "fonts" / "Monocraft.ttf"),
     r"C:\Windows\Fonts\consolab.ttf",   # Consolas Bold
@@ -223,8 +226,21 @@ def main():
         help="Override the resource pack format number written to pack.mcmeta "
              "(auto-picked from --version when known; required if not).",
     )
+    parser.add_argument(
+        "--font", type=Path, default=None,
+        help="Path to a specific .ttf/.otf font to stamp text with, overriding "
+             "auto-detection. Required for non-Latin scripts (CJK, Cyrillic, "
+             "Kannada, Arabic, ...) -- the default candidates are Latin-only "
+             "and auto-detection can't guess which script you need. See "
+             "fonts/README.md for where to get an open-source font per script.",
+    )
     args = parser.parse_args()
     paths = resolve_paths(args.version, args.language)
+
+    if args.font:
+        if not args.font.is_file():
+            raise SystemExit(f"--font {args.font} not found.")
+        FONT_CANDIDATES.insert(0, str(args.font))
 
     pack_format = args.pack_format or KNOWN_PACK_FORMATS.get(args.version)
     if pack_format is None:

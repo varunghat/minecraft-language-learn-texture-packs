@@ -132,14 +132,23 @@ Then in Minecraft: **Options > Resource Packs**, enable it from the list.
 Alternatively, skip the script and drag the `.zip` yourself into **Options >
 Resource Packs > Open Pack Folder**.
 
-## Current limitations
+## Fonts
 
-- **Latin scripts only.** The bundled font fallbacks (Consolas / Lucida
-  Console / Courier New) don't have CJK, Cyrillic, Arabic, etc. glyphs, so
-  non-Latin languages will render blank/tofu boxes. Drop a font with the
-  glyphs you need into `fonts/Monocraft.ttf` (or edit `FONT_CANDIDATES` in
-  `generate_pack.py`) to override -- proper per-language font selection is a
-  planned follow-up.
+Auto-detection only ever falls back to Latin-script system fonts (Consolas /
+Lucida Console / Courier New on Windows), so it works with zero setup for
+Spanish, French, German, etc. Non-Latin scripts need `--font` pointing at a
+font that has the right glyphs:
+
+```
+python generate_pack.py --language ja_jp --version 1.21.4 --font fonts/NotoSansJP.ttf
+```
+
+See [`fonts/README.md`](fonts/README.md) for where to download open-source
+fonts (Chinese, Japanese, Korean, Kannada, ...) and what to name them.
+Auto-detection can't guess which script a language needs, so there's no
+automatic per-language font selection yet -- `--font` is always manual.
+
+## Current limitations
 - **No transliteration/orthography variants yet** (e.g. pinyin alongside
   Chinese characters, like the reference pack). Only whatever single string
   the official lang file provides per block gets stamped.
