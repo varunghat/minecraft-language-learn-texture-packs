@@ -1,2 +1,146 @@
 # minecraft-language-learn-texture-pack
-Minecraft texture pack creator for language learning, with word names appearing over blocks in English orthography
+
+Generates a Minecraft resource pack that stamps every visible block face with
+its name in a language you're learning -- so placing an oak log in survival
+also teaches you the word for it.
+
+Inspired by [chinese-for-learners-minecraft-language-pack](https://github.com/LAntoine/chinese-for-learners-minecraft-language-pack).
+
+## How it works
+
+1. **`fetch_jar.py`** downloads a Minecraft version's client jar straight
+   from Mojang's public version manifest (the same endpoints the vanilla
+   launcher uses) and extracts its `assets/` into `jar/<version>/`.
+2. **`build_block_textures.py`** resolves `blockstates/*.json` and
+   `models/block/*.json` from that extracted jar to work out exactly which
+   texture files are real, visible block faces (as opposed to GUI sprites,
+   entity skins, particles, animation strips, etc.) and which block id each
+   one belongs to. Output: `data/block_textures_<version>.json`. Only needs
+   to be run once per Minecraft version, not per language.
+3. **`fetch_lang.py`** pulls an official Mojang translation file for a given
+   language out of your local Minecraft install (see below for why this is
+   needed). Output: `jar/<version>/assets/minecraft/lang/<language>.json`.
+4. **`generate_pack.py`** stamps the translated word onto each labeled
+   texture (auto-shrinking/wrapping the font to fit) and zips the result into
+   a resource pack.
+5. **`install_pack.py`** copies that zip into Minecraft's `resourcepacks/`
+   folder for you.
+
+`fetch_jar.py`, `build_block_textures.py`, `fetch_lang.py`, and
+`generate_pack.py` all require `--version` -- there's no default. Pass the
+same one consistently across all of them for a given run; a mismatched or
+forgotten one fails loudly instead of silently building the wrong version's
+pack. `fetch_lang.py`, `generate_pack.py`, and `install_pack.py` also
+require `--language` (`install_pack.py` doesn't need `--version` since it
+just moves a file that's already built).
+
+## Setup
+
+```
+pip install -r requirements.txt
+```
+
+## Generating a pack
+
+### 1. Get the game assets for your Minecraft version
+
+```
+python fetch_jar.py --version 1.21.4
+```
+
+Downloads that version's client jar from Mojang and extracts
+`assets/minecraft/...` (`blockstates/`, `models/`, `textures/`, ...) into
+`jar/1.21.4/`. Only needs to be done once per version.
+
+### 2. Build the block/texture manifest (once per Minecraft version)
+
+```
+python build_block_textures.py --version 1.21.4
+```
+
+### 3. Get a translation file for your language
+
+Mojang's client jar only ships `en_us.json` -- every other language is
+downloaded on demand by the launcher, once you've selected it in-game.
+
+1. In Minecraft: **Options > Language**, select your target language, then
+   quit (this makes the launcher actually download that language's assets).
+2. Run:
+
+```
+python fetch_lang.py --language de_de --version 1.21.4
+```
+
+This finds the file in your `.minecraft` folder (auto-detected per OS,
+override with `--minecraft-dir`) via the version's asset index and copies it
+into `jar/<version>/assets/minecraft/lang/`. See `python fetch_lang.py --help`
+for all options (matching a specific version folder, passing a known asset
+index id directly, etc).
+
+**If you only have a modded launcher profile installed** (OptiFine, Forge,
+Fabric, ...) and not plain vanilla -- e.g. `.minecraft/versions/` only has
+`OptiFine 1.21.8`, not `1.21.8` -- keep `--version` as the clean id (so it
+still lines up with `fetch_jar.py`/`build_block_textures.py`/
+`generate_pack.py`, which only ever talk to Mojang directly and don't care
+about your local install) and point the local lookup at the profile folder
+separately:
+
+```
+python fetch_lang.py --language fr_fr --version 1.21.8 --local-version-dir "OptiFine 1.21.8"
+```
+
+Use the [Minecraft language code](https://minecraft.wiki/w/Language) for the
+language you want, e.g. `es_es` (Spanish), `fr_fr` (French), `ja_jp` (Japanese).
+
+**If `fetch_lang.py` can't find the file** (language never selected in-game,
+no local Minecraft install on this machine, etc.), you can source
+`<language>.json` some other way -- e.g. a community mirror of Minecraft's
+language files -- and manually place it at
+`jar/<version>/assets/minecraft/lang/<language>.json`. It just needs to be a
+JSON object with `block.minecraft.<id>` keys, same shape as `en_us.json`.
+
+### 4. Generate the pack
+
+```
+python generate_pack.py --language de_de --version 1.21.4
+```
+
+Produces `output/language-learn-1.21.4-de_de/` (unzipped) and
+`output/language-learn-1.21.4-de_de.zip` -- the version is baked into the
+name so packs for different versions (or different languages) don't
+overwrite each other. Blocks with no translation entry in the lang file are
+skipped and listed in the console output rather than silently mislabeled.
+`pack.mcmeta`'s `pack_format` is looked up automatically for known versions;
+pass `--pack-format` yourself for anything not in that list (check the
+Minecraft Wiki's "Pack format" table).
+
+### 5. Install it
+
+```
+python install_pack.py --language de_de --version 1.21.4
+```
+
+Copies `output/language-learn-1.21.4-de_de.zip` into
+`<.minecraft>/resourcepacks/` (auto-detected per OS, same as
+`fetch_lang.py`). Add `--move` to remove it from `output/` after copying
+instead of leaving it in place, or `--resourcepacks-dir` to install straight
+into a modded launcher instance (MultiMC/Prism/CurseForge/...) that keeps
+resource packs outside the shared `.minecraft` folder.
+
+Then in Minecraft: **Options > Resource Packs**, enable it from the list.
+
+Alternatively, skip the script and drag the `.zip` yourself into **Options >
+Resource Packs > Open Pack Folder**.
+
+## Current limitations
+
+- **Latin scripts only.** The bundled font fallbacks (Consolas / Lucida
+  Console / Courier New) don't have CJK, Cyrillic, Arabic, etc. glyphs, so
+  non-Latin languages will render blank/tofu boxes. Drop a font with the
+  glyphs you need into `fonts/Monocraft.ttf` (or edit `FONT_CANDIDATES` in
+  `generate_pack.py`) to override -- proper per-language font selection is a
+  planned follow-up.
+- **No transliteration/orthography variants yet** (e.g. pinyin alongside
+  Chinese characters, like the reference pack). Only whatever single string
+  the official lang file provides per block gets stamped.
+- **Blocks only.** Items, entities, and GUI textures aren't touched.
