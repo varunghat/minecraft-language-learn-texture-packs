@@ -20,6 +20,8 @@ Inspired by [chinese-for-learners-minecraft-language-pack](https://github.com/LA
 3. **`fetch_lang.py`** pulls an official Mojang translation file for a given
    language out of your local Minecraft install (see below for why this is
    needed). Output: `jar/<version>/assets/minecraft/lang/<language>.json`.
+   For a language Mojang doesn't support, **`make_lang_template.py`** writes
+   a fill-in-the-blanks lang file to that same path instead.
 4. **`generate_pack.py`** stamps the translated word onto each labeled
    texture (auto-shrinking/wrapping the font to fit) and zips the result into
    a resource pack.
@@ -92,12 +94,41 @@ python fetch_lang.py --language fr_fr --version 1.21.8 --local-version-dir "Opti
 Use the [Minecraft language code](https://minecraft.wiki/w/Language) for the
 language you want, e.g. `es_es` (Spanish), `fr_fr` (French), `ja_jp` (Japanese).
 
-**If `fetch_lang.py` can't find the file** (language never selected in-game,
-no local Minecraft install on this machine, etc.), you can source
-`<language>.json` some other way -- e.g. a community mirror of Minecraft's
-language files -- and manually place it at
-`jar/<version>/assets/minecraft/lang/<language>.json`. It just needs to be a
-JSON object with `block.minecraft.<id>` keys, same shape as `en_us.json`.
+#### Languages Minecraft doesn't support, or fixing an existing translation
+
+For a language Mojang doesn't ship at all, or to hand-fix specific words in
+one you already fetched, use `make_lang_template.py` instead of
+`fetch_lang.py`. It writes a lang file to the same place (`jar/<version>/
+assets/minecraft/lang/<language>.json`), so `generate_pack.py` treats it
+identically either way -- it has no idea whether a file came from Mojang or
+from you.
+
+```
+python build_block_textures.py --version 1.21.4   # needed first, if you haven't already
+python make_lang_template.py --version 1.21.4 --language tlh_aa
+```
+
+This creates a JSON file with one `"block.minecraft.<id>": ""` entry per
+block this project knows how to label (pulled from
+`data/block_textures_<version>.json`) -- open it and fill in each value by
+hand. `--language` can be a real Minecraft code you want to override, or a
+made-up one for a language Minecraft doesn't support at all (any string
+works, since `generate_pack.py` never validates it against a list of real
+codes -- it just needs a matching lang file to exist).
+
+Two more flags:
+- `--prefill-english` fills every entry with its English text from
+  `en_us.json` instead of leaving it blank, so you're translating each line
+  rather than needing `en_us.json` open in another tab to know what each
+  block id even means.
+- `--force` overwrites a lang file that's already there (e.g. to regenerate
+  a template, or intentionally clobber a real fetched one you want to
+  hand-edit from scratch).
+
+To fix just a few words in an existing lang file without regenerating
+anything, it's a plain JSON file -- open
+`jar/<version>/assets/minecraft/lang/<language>.json` in any editor and
+change the values directly, then rerun `generate_pack.py`.
 
 ### 4. Generate the pack
 
@@ -112,7 +143,11 @@ overwrite each other. Blocks with no translation entry in the lang file are
 skipped and listed in the console output rather than silently mislabeled.
 `pack.mcmeta`'s `pack_format` is looked up automatically for known versions;
 pass `--pack-format` yourself for anything not in that list (check the
-Minecraft Wiki's "Pack format" table).
+Minecraft Wiki's "Pack format" table). `pack.png` is generated too -- a
+tinted grass-block-top texture labeled with the language's English name and,
+when the lang file has one, its native name from its own `language.name`
+key (e.g. "German" / "Deutsch") -- so the pack is identifiable in Minecraft's
+resource pack list instead of showing a generic icon.
 
 ### 5. Install it
 

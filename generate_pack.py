@@ -26,10 +26,41 @@ import textwrap
 import zipfile
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageChops, ImageDraw, ImageFont
 from tqdm import tqdm
 
 SCALE = 8  # 16x16 source -> 128x128 output, nearest-neighbor (keeps pixel art crisp)
+
+# Approximate Minecraft plains-biome grass green, used to tint the pack icon
+# base texture (see render_pack_icon). grass_block_top.png is deliberately a
+# flat, mostly-gray texture in the jar -- Minecraft tints it per-biome at
+# render time using colormap/grass.png, which pack.png doesn't go through
+# (it's just a GUI image), so left untinted it'd look washed-out/gray rather
+# than the green players expect. This is a fixed approximation, not a real
+# biome colormap lookup -- fine for a static icon.
+GRASS_TINT = (124, 189, 107)
+
+# English names for a handful of common Minecraft language codes, used only
+# for the pack.png icon label. Not exhaustive -- a code that isn't listed
+# here just falls back to showing its raw code (e.g. "xx_xx") rather than
+# guessing wrong. This is the ONE piece of icon text that has to be
+# hardcoded: unlike the native name (see render_pack_icon), Minecraft's own
+# lang files don't contain "the English name of this language" anywhere.
+ENGLISH_LANGUAGE_NAMES = {
+    "en_us": "English", "de_de": "German", "fr_fr": "French",
+    "es_es": "Spanish", "es_mx": "Spanish (Mexico)", "it_it": "Italian",
+    "pt_br": "Portuguese (Brazil)", "pt_pt": "Portuguese", "ru_ru": "Russian",
+    "ja_jp": "Japanese", "ko_kr": "Korean", "zh_cn": "Chinese (Simplified)",
+    "zh_tw": "Chinese (Traditional)", "nl_nl": "Dutch", "pl_pl": "Polish",
+    "sv_se": "Swedish", "tr_tr": "Turkish", "uk_ua": "Ukrainian",
+    "cs_cz": "Czech", "da_dk": "Danish", "fi_fi": "Finnish",
+    "nb_no": "Norwegian", "hu_hu": "Hungarian", "el_gr": "Greek",
+    "he_il": "Hebrew", "ar_sa": "Arabic", "hi_in": "Hindi", "th_th": "Thai",
+    "vi_vn": "Vietnamese", "id_id": "Indonesian", "ro_ro": "Romanian",
+    "bg_bg": "Bulgarian", "hr_hr": "Croatian", "sk_sk": "Slovak",
+    "lt_lt": "Lithuanian", "lv_lv": "Latvian", "et_ee": "Estonian",
+    "sl_si": "Slovenian",
+}
 
 # Minecraft resource pack format per version (see the "Pack format" table on
 # the Minecraft Wiki). Textures still load with a mismatched value, but the
@@ -188,15 +219,61 @@ def write_pack_mcmeta(pack_root: Path, language: str, pack_format: int):
     )
 
 
-def write_pack_icon(pack_root: Path, output_dir: Path, icon_source_stem: str | None):
-    """Use one already-stamped texture as the pack's icon (pack.png) so the
-    icon itself previews the effect on the resource pack selection screen."""
-    if icon_source_stem is None:
-        return
-    src = output_dir / f"{icon_source_stem}.png"
-    if not src.is_file():
-        return
-    Image.open(src).convert("RGBA").save(pack_root / "pack.png")
+def _fit_single_line(draw, text: str, max_width: float, max_font_size: int, min_font_size: int = 8):
+    """Like _fit_text, but for one independent line with no wrapping --
+    just shrinks until it fits max_width."""
+    font_size = max_font_size
+    while font_size > min_font_size:
+        font = load_font(font_size)
+        stroke_width = max(1, font_size // 12)
+        width = draw.textlength(text, font=font) + stroke_width * 2
+        if width <= max_width:
+            return font, stroke_width
+        font_size -= 1
+    return load_font(min_font_size), max(1, min_font_size // 12)
+
+
+def _draw_centered_line(draw, text: str, canvas_w: int, y_center: float, max_font_size: int):
+    font, stroke_width = _fit_single_line(draw, text, canvas_w * 0.92, max_font_size)
+    bbox = draw.textbbox((0, 0), text, font=font, stroke_width=stroke_width)
+    x = (canvas_w - (bbox[2] - bbox[0])) / 2 - bbox[0]
+    y = y_center - (bbox[3] - bbox[1]) / 2 - bbox[1]
+    draw.text(
+        (x, y), text, font=font,
+        fill=(255, 255, 255, 255),
+        stroke_width=stroke_width, stroke_fill=(0, 0, 0, 255),
+    )
+
+
+def render_pack_icon(jar_textures: Path, language: str, lang: dict, size: int = 128) -> Image.Image:
+    """A tinted grass-block-top texture labeled with the language's English
+    name, plus its native name (from the lang file's own "language.name"
+    key) as a second line when available and different from the English one.
+    """
+    base_path = jar_textures / "grass_block_top.png"
+    img = Image.open(base_path).convert("RGBA").resize((size, size), Image.NEAREST)
+    tint = Image.new("RGBA", img.size, (*GRASS_TINT, 255))
+    img = ImageChops.multiply(img, tint)
+
+    draw = ImageDraw.Draw(img, "RGBA")
+    english_name = ENGLISH_LANGUAGE_NAMES.get(language, language)
+    native_name = lang.get("language.name")
+
+    lines = [english_name]
+    if native_name and native_name.lower() != english_name.lower():
+        lines.append(native_name)
+
+    if len(lines) == 1:
+        _draw_centered_line(draw, lines[0], size, size / 2, size // 5)
+    else:
+        _draw_centered_line(draw, lines[0], size, size * 0.34, size // 6)
+        _draw_centered_line(draw, lines[1], size, size * 0.66, size // 6)
+
+    return img
+
+
+def write_pack_icon(pack_root: Path, jar_textures: Path, language: str, lang: dict):
+    render_pack_icon(jar_textures, language, lang).save(pack_root / "pack.png")
 
 
 def zip_pack(pack_root: Path, zip_path: Path):
@@ -303,8 +380,7 @@ def main():
         print(f"No '{args.language}' translation, skipped: {preview}{more}")
 
     write_pack_mcmeta(paths["pack_root"], args.language, pack_format)
-    icon_stem = "oak_planks" if "oak_planks" in written else next(iter(written), None)
-    write_pack_icon(paths["pack_root"], output_dir, icon_stem)
+    write_pack_icon(paths["pack_root"], paths["jar_textures"], args.language, lang)
     zip_pack(paths["pack_root"], paths["zip_path"])
     print(f"Wrote {paths['pack_root']} and {paths['zip_path']}")
 
