@@ -141,9 +141,12 @@ Produces `output/language-learn-1.21.4-de_de/` (unzipped) and
 name so packs for different versions (or different languages) don't
 overwrite each other. Blocks with no translation entry in the lang file are
 skipped and listed in the console output rather than silently mislabeled.
-`pack.mcmeta`'s `pack_format` is looked up automatically for known versions;
-pass `--pack-format` yourself for anything not in that list (check the
-Minecraft Wiki's "Pack format" table). `pack.png` is generated too -- a
+`pack.mcmeta`'s `pack_format` is looked up automatically from
+[`data/pack_formats.json`](data/pack_formats.json) (version ranges scraped
+from the Minecraft Wiki's ["Pack format"](https://minecraft.wiki/w/Pack_format)
+page -- covers 1.6.1 through the current version at the time it was pulled);
+pass `--pack-format` yourself for any version released after that, or one
+outside every listed range. `pack.png` is generated too -- a
 tinted grass-block-top texture labeled with the language's English name and,
 when the lang file has one, its native name from its own `language.name`
 key (e.g. "German" / "Deutsch") -- so the pack is identifiable in Minecraft's
@@ -185,6 +188,40 @@ See [`fonts/README.md`](fonts/README.md) for what's already there, and where
 to download open-source fonts for other scripts (Chinese, Korean, Kannada,
 ...). Auto-detection can't guess which script a language needs, so there's
 no automatic per-language font selection yet -- `--font` is always manual.
+
+## Transliteration
+
+`--transliterate` stamps a romanization under the word, for languages that
+have a well-defined one:
+
+| Language | Romanization | Library |
+|---|---|---|
+| `zh_cn` / `zh_tw` | Pinyin | [`pypinyin`](https://pypi.org/project/pypinyin/) |
+| `ja_jp` | Romaji (Hepburn) | [`pykakasi`](https://pypi.org/project/pykakasi/) |
+| `ko_kr` | Revised Romanization | [`korean-romanizer`](https://pypi.org/project/korean-romanizer/) |
+
+These aren't in `requirements.txt` -- they're optional extras in
+`pyproject.toml`, since each is a real dependency most installs (anyone not
+generating one of these three languages) will never use:
+
+```
+pip install -e ".[ja]"             # just Japanese
+pip install -e ".[zh]"             # just Chinese
+pip install -e ".[ko]"             # just Korean
+pip install -e ".[transliterate]"  # all three
+```
+
+Then:
+
+```
+python generate_pack.py --language ja_jp --version 1.21.4 --font fonts/NotoSansJP-VariableFont_wght.ttf --transliterate
+```
+
+`--transliterate` on a language with no romanization registered (anything
+other than the three above) is a harmless no-op -- word-only, same as
+without the flag, not an error. If the matching library isn't installed,
+you get a clear message telling you which `pip install -e ".[...]"` to run,
+not a raw traceback.
 
 ## Current limitations
 - **No transliteration/orthography variants yet** (e.g. pinyin alongside

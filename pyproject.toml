@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "minecraft-language-learn-texture-packs"
+version = "0.1.0"
+description = "Generates Minecraft resource packs that label block textures with words in a language you're learning."
+requires-python = ">=3.10"
+dependencies = [
+    "Pillow>=10.0",
+    "tqdm>=4.0",
+]
+
+# Transliteration (--transliterate on generate_pack.py) needs a different
+# library per script, each with its own install footprint, so they're kept
+# out of the base install (requirements.txt) and opt-in here instead:
+#   pip install -e ".[ja]"             # just Japanese
+#   pip install -e ".[transliterate]"  # all supported scripts
+[project.optional-dependencies]
+zh = ["pypinyin>=0.50"]
+ja = ["pykakasi>=2.2"]
+ko = ["korean-romanizer>=0.25"]
+transliterate = [
+    "pypinyin>=0.50",
+    "pykakasi>=2.2",
+    "korean-romanizer>=0.25",
+]
+
+# This repo is a set of standalone scripts run directly (python generate_pack.py
+# ...), not a package meant to be imported -- py-modules just lists them so
+# `pip install -e .` has something to attach the dependency groups above to.
+[tool.setuptools]
+py-modules = [
+    "build_block_textures",
+    "fetch_jar",
+    "fetch_lang",
+    "generate_pack",
+    "install_pack",
+    "make_lang_template",
+    "mc_paths",
+    "transliteration",
+]

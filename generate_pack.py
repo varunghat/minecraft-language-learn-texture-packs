@@ -16,7 +16,8 @@ a placeholder -- missing coverage should be obvious, not silently wrong.
 Usage:
     python generate_pack.py --language de_de --version 1.21.4
     python generate_pack.py --language es_es --version 1.20.6
-    python generate_pack.py --language ja_jp --version 1.21.4 --font fonts/NotoSansJP.ttf
+    python generate_pack.py --language ja_jp --version 1.21.4 --font fonts/NotoSansJP-VariableFont_wght.ttf
+    python generate_pack.py --language ja_jp --version 1.21.4 --font fonts/NotoSansJP-VariableFont_wght.ttf --transliterate
 """
 
 import argparse
@@ -28,6 +29,8 @@ from pathlib import Path
 
 from PIL import Image, ImageChops, ImageDraw, ImageFont
 from tqdm import tqdm
+
+from transliteration import MissingTransliterationDependency, get_transliterator
 
 SCALE = 8  # 16x16 source -> 128x128 output, nearest-neighbor (keeps pixel art crisp)
 
@@ -62,16 +65,31 @@ ENGLISH_LANGUAGE_NAMES = {
     "sl_si": "Slovenian",
 }
 
-# Minecraft resource pack format per version (see the "Pack format" table on
-# the Minecraft Wiki). Textures still load with a mismatched value, but the
-# game shows an "incompatible" warning on the pack screen without it. Only
-# entries we're actually sure of are listed; override with --pack-format for
-# anything else.
-KNOWN_PACK_FORMATS = {
-    "1.21.4": 46,
-}
-
 ROOT = Path(__file__).parent
+PACK_FORMATS_PATH = ROOT / "data" / "pack_formats.json"
+
+
+def _version_tuple(version: str) -> tuple[int, ...]:
+    """'1.21.4' -> (1, 21, 4, 0, 0); pads so ranges with a different number
+    of version components (e.g. "1.19" vs "1.19.2", or "26.1" vs "1.21.11")
+    still compare correctly as plain tuples."""
+    parts = tuple(int(p) for p in version.split("."))
+    return parts + (0,) * (5 - len(parts))
+
+
+def find_pack_format(version: str, formats_path: Path = PACK_FORMATS_PATH) -> int | None:
+    """Looks up `version` in data/pack_formats.json (scraped from the
+    Minecraft Wiki's "Pack format" page), matching it against each
+    [min, max] range. Returns None if no range covers it -- the caller
+    should ask for --pack-format explicitly rather than guessing."""
+    if not formats_path.is_file():
+        return None
+    data = json.loads(formats_path.read_text(encoding="utf-8"))
+    v = _version_tuple(version)
+    for entry in data["resource_pack_formats"]:
+        if _version_tuple(entry["min"]) <= v <= _version_tuple(entry["max"]):
+            return entry["format"]
+    return None
 
 # Default preference order; first candidate that exists on disk wins. --font
 # on the CLI is inserted at the front of this list at runtime, so it always
@@ -188,6 +206,25 @@ def stamp_text(img: Image.Image, text: str) -> Image.Image:
         )
         y += line_height
 
+    return img
+
+
+def stamp_lines(img: Image.Image, lines: list[str]) -> Image.Image:
+    """Draw each string in `lines` as its own centered row, evenly spaced.
+
+    Used for --transliterate (word on one row, its romanization on the
+    next) where the line split is already decided by the caller, unlike
+    stamp_text's word-wrapping of a single phrase. Reuses the same
+    shrink-to-fit-width helpers as the pack.png icon label (_fit_single_line/
+    _draw_centered_line), since both are "fit N independent lines," not "wrap
+    one string."
+    """
+    w, h = img.size
+    draw = ImageDraw.Draw(img, "RGBA")
+    row_h = h / len(lines)
+    max_font_size = int(row_h * 0.7)
+    for i, line in enumerate(lines):
+        _draw_centered_line(draw, line, w, row_h * (i + 0.5), max_font_size)
     return img
 
 
@@ -311,6 +348,15 @@ def main():
              "and auto-detection can't guess which script you need. See "
              "fonts/README.md for where to get an open-source font per script.",
     )
+    parser.add_argument(
+        "--transliterate", action="store_true",
+        help="Also stamp a romanization under the word, for languages that "
+             "have one: pinyin (zh_cn/zh_tw), romaji (ja_jp), Revised "
+             "Romanization (ko_kr). Needs extra dependencies -- see "
+             "pyproject.toml's [project.optional-dependencies], e.g. "
+             "`pip install -e \".[ja]\"`. A no-op (word only, no error) for "
+             "any other language.",
+    )
     args = parser.parse_args()
     paths = resolve_paths(args.version, args.language)
 
@@ -319,10 +365,16 @@ def main():
             raise SystemExit(f"--font {args.font} not found.")
         FONT_CANDIDATES.insert(0, str(args.font))
 
-    pack_format = args.pack_format or KNOWN_PACK_FORMATS.get(args.version)
+    transliterator = None
+    if args.transliterate:
+        transliterator = get_transliterator(args.language)
+        if transliterator is None:
+            print(f"No transliterator available for '{args.language}' -- stamping words only.")
+
+    pack_format = args.pack_format or find_pack_format(args.version)
     if pack_format is None:
         raise SystemExit(
-            f"Don't know the pack_format for version {args.version}. "
+            f"No pack_format entry covers version {args.version} in {PACK_FORMATS_PATH}.\n"
             f"Pass --pack-format explicitly (check the Minecraft Wiki's 'Pack format' table)."
         )
 
@@ -366,7 +418,19 @@ def main():
 
             img = Image.open(src_path).convert("RGBA")
             img = img.resize((img.width * SCALE, img.height * SCALE), Image.NEAREST)
-            img = stamp_text(img, word)
+
+            translit = None
+            if transliterator:
+                try:
+                    translit = transliterator(word)
+                except MissingTransliterationDependency as e:
+                    raise SystemExit(str(e))
+
+            if translit and translit.strip().lower() != word.strip().lower():
+                img = stamp_lines(img, [word, translit])
+            else:
+                img = stamp_text(img, word)
+
             img.save(output_dir / f"{stem}.png")
 
             written.add(stem)
