@@ -12,6 +12,7 @@ Usage:
 """
 
 import argparse
+import hashlib
 import json
 import urllib.request
 import zipfile
@@ -39,14 +40,29 @@ def find_version_manifest_url(version: str) -> str:
     )
 
 
-def find_client_jar_url(version_manifest_url: str) -> str:
+def find_client_download(version_manifest_url: str) -> dict:
+    """Returns Mojang's downloads.client dict: {"url", "sha1", "size"}."""
     data = fetch_json(version_manifest_url)
-    return data["downloads"]["client"]["url"]
+    return data["downloads"]["client"]
+
+
+def sha1_of(path: Path) -> str:
+    digest = hashlib.sha1()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def download(url: str, dest: Path):
     print(f"Downloading {url}")
-    urllib.request.urlretrieve(url, dest)
+    try:
+        urllib.request.urlretrieve(url, dest)
+    except BaseException:
+        # Interrupted (Ctrl-C, connection drop, ...) -- don't leave a partial
+        # .jar sitting at `dest` for a future run to trip over.
+        dest.unlink(missing_ok=True)
+        raise
 
 
 def extract(jar_path: Path, dest_dir: Path, full: bool):
@@ -76,11 +92,23 @@ def main():
         raise SystemExit(f"{dest_dir} already exists and isn't empty. Remove it first if you want to re-fetch.")
 
     version_manifest_url = find_version_manifest_url(args.version)
-    client_jar_url = find_client_jar_url(version_manifest_url)
+    client = find_client_download(version_manifest_url)
 
     jar_path = ROOT / "jar" / f"{args.version}-client.jar"
     jar_path.parent.mkdir(parents=True, exist_ok=True)
-    download(client_jar_url, jar_path)
+    download(client["url"], jar_path)
+
+    expected_sha1 = client.get("sha1")
+    if expected_sha1:
+        actual_sha1 = sha1_of(jar_path)
+        if actual_sha1 != expected_sha1:
+            jar_path.unlink()
+            raise SystemExit(
+                f"Download verification failed: sha1 mismatch for {args.version}-client.jar "
+                f"(expected {expected_sha1}, got {actual_sha1}).\n"
+                f"The download was likely interrupted or corrupted -- run this again."
+            )
+        print(f"Verified sha1 {actual_sha1}")
 
     extract(jar_path, dest_dir, args.full)
 

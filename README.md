@@ -171,17 +171,20 @@ Resource Packs > Open Pack Folder**.
 
 Auto-detection only ever falls back to Latin-script system fonts (Consolas /
 Lucida Console / Courier New on Windows), so it works with zero setup for
-Spanish, French, German, etc. Non-Latin scripts need `--font` pointing at a
-font that has the right glyphs:
+Spanish, French, German, etc. `Monocraft.ttf`, if present in `fonts/`, is
+also picked up automatically for a look closer to Minecraft's own typeface.
+
+Non-Latin scripts need `--font` pointing at a font with the right glyphs --
+a Japanese one (Noto Sans JP) is already in `fonts/`:
 
 ```
-python generate_pack.py --language ja_jp --version 1.21.4 --font fonts/NotoSansJP.ttf
+python generate_pack.py --language ja_jp --version 1.21.4 --font fonts/NotoSansJP-VariableFont_wght.ttf
 ```
 
-See [`fonts/README.md`](fonts/README.md) for where to download open-source
-fonts (Chinese, Japanese, Korean, Kannada, ...) and what to name them.
-Auto-detection can't guess which script a language needs, so there's no
-automatic per-language font selection yet -- `--font` is always manual.
+See [`fonts/README.md`](fonts/README.md) for what's already there, and where
+to download open-source fonts for other scripts (Chinese, Korean, Kannada,
+...). Auto-detection can't guess which script a language needs, so there's
+no automatic per-language font selection yet -- `--font` is always manual.
 
 ## Current limitations
 - **No transliteration/orthography variants yet** (e.g. pinyin alongside
