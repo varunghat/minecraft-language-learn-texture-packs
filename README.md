@@ -6,6 +6,10 @@ also teaches you the word for it.
 
 Inspired by [chinese-for-learners-minecraft-language-pack](https://github.com/LAntoine/chinese-for-learners-minecraft-language-pack).
 
+**Just want a pack, not to build one?** Check the
+[Releases](https://github.com/varunghat/minecraft-language-learn-texture-packs/releases)
+page for pre-generated `.zip`s in several languages.
+
 ## Screenshots
 
 | Japanese (`ja_jp`) | Korean (`ko_kr`) |
