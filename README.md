@@ -236,22 +236,29 @@ This project deliberately only labels blocks, not items or verbs:
 
 ## Fonts
 
-Auto-detection only ever falls back to Latin-script system fonts (Consolas /
-Lucida Console / Courier New on Windows), so it works with zero setup for
-Spanish, French, German, etc. `Monocraft.ttf`, if present in `fonts/`, is
-also picked up automatically for a look closer to Minecraft's own typeface.
+Latin scripts (Spanish, French, German, ...) work with zero setup, falling
+back to a system font (Consolas / Lucida Console / Courier New on Windows),
+or `Monocraft.ttf` automatically if it's present in `fonts/`, for a look
+closer to Minecraft's own typeface.
 
-Non-Latin scripts need `--font` pointing at a font with the right glyphs --
-a Japanese one (Noto Sans JP) is already in `fonts/`:
+Non-Latin scripts need a font with the right glyphs, but for `ja_jp`,
+`zh_cn`, and `ko_kr` that's automatic too -- `data/font_map.json` maps each
+to a font already in `fonts/`, so this just works with no extra flag:
 
 ```
-python generate_pack.py --language ja_jp --version 1.21.4 --font fonts/NotoSansJP-VariableFont_wght.ttf
+python generate_pack.py --language ja_jp --version 1.21.4
 ```
 
-See [`fonts/README.md`](fonts/README.md) for what's already there, and where
-to download open-source fonts for other scripts (Chinese, Korean, Kannada,
-...). Auto-detection can't guess which script a language needs, so there's
-no automatic per-language font selection yet -- `--font` is always manual.
+For a language not in that map yet, `--font` overrides everything:
+
+```
+python generate_pack.py --language ar_sa --version 1.21.4 --font fonts/SomeArabicFont.ttf
+```
+
+See [`fonts/README.md`](fonts/README.md) for what's already mapped, where to
+download open-source fonts for other scripts (Chinese Traditional, Kannada,
+...), and how to add a new language to the map (two steps: drop the font in
+`fonts/`, add one line to `font_map.json`).
 
 ## Transliteration
 

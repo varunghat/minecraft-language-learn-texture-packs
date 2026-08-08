@@ -16,8 +16,8 @@ a placeholder -- missing coverage should be obvious, not silently wrong.
 Usage:
     python generate_pack.py --language de_de --version 1.21.4
     python generate_pack.py --language es_es --version 1.20.6
-    python generate_pack.py --language ja_jp --version 1.21.4 --font fonts/NotoSansJP-VariableFont_wght.ttf
-    python generate_pack.py --language ja_jp --version 1.21.4 --font fonts/NotoSansJP-VariableFont_wght.ttf --transliterate
+    python generate_pack.py --language ja_jp --version 1.21.4 --transliterate   # font auto-picked from data/font_map.json
+    python generate_pack.py --language ar_sa --version 1.21.4 --font fonts/SomeArabicFont.ttf   # no font_map.json entry yet
     python generate_pack.py --language de_de --version 1.21.4 --scale 32   # 16x16 source -> 512x512 output
 """
 
@@ -72,6 +72,21 @@ ENGLISH_LANGUAGE_NAMES = {
 
 ROOT = Path(__file__).parent
 PACK_FORMATS_PATH = ROOT / "data" / "pack_formats.json"
+FONT_MAP_PATH = ROOT / "data" / "font_map.json"
+
+
+def default_font_for(language: str, font_map_path: Path = FONT_MAP_PATH) -> Path | None:
+    """Looks up `language` in data/font_map.json and returns fonts/<file> if
+    it's listed there and actually present on disk. Returns None if either
+    isn't true -- callers fall back to the default Latin-script candidates,
+    same as if no mapping existed at all."""
+    if not font_map_path.is_file():
+        return None
+    filename = json.loads(font_map_path.read_text(encoding="utf-8"))["fonts"].get(language)
+    if not filename:
+        return None
+    path = ROOT / "fonts" / filename
+    return path if path.is_file() else None
 
 
 def _version_tuple(version: str) -> tuple[int, ...]:
@@ -355,11 +370,11 @@ def main():
     )
     parser.add_argument(
         "--font", type=Path, default=None,
-        help="Path to a specific .ttf/.otf font to stamp text with, overriding "
-             "auto-detection. Required for non-Latin scripts (CJK, Cyrillic, "
-             "Kannada, Arabic, ...) -- the default candidates are Latin-only "
-             "and auto-detection can't guess which script you need. See "
-             "fonts/README.md for where to get an open-source font per script.",
+        help="Path to a specific .ttf/.otf font to stamp text with. Overrides "
+             "everything, including data/font_map.json. Only needed for a "
+             "script with no entry there yet, or to try a different font for "
+             "one that does -- ja_jp/zh_cn/ko_kr already have a mapped font "
+             "and work with no flag. See fonts/README.md for font sources.",
     )
     parser.add_argument(
         "--transliterate", action="store_true",
@@ -377,6 +392,10 @@ def main():
         if not args.font.is_file():
             raise SystemExit(f"--font {args.font} not found.")
         FONT_CANDIDATES.insert(0, str(args.font))
+    else:
+        mapped_font = default_font_for(args.language)
+        if mapped_font:
+            FONT_CANDIDATES.insert(0, str(mapped_font))
 
     transliterator = None
     if args.transliterate:

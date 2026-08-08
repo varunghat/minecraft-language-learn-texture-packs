@@ -1,0 +1,8 @@
+{
+  "note": "Maps a Minecraft language code to a font file in fonts/ that generate_pack.py picks automatically when --font isn't given. To add a language: download an open-source font covering its script (see fonts/README.md for sources), drop the file into fonts/, then add one line below: \"<language_code>\": \"<filename in fonts/>\". Only list languages that need something other than the default Latin-script fallback (system fonts / Monocraft.ttf) -- don't add de_de, fr_fr, es_es, etc. here, they already work with no entry. --font on the command line always overrides this map.",
+  "fonts": {
+    "ja_jp": "NotoSansJP-VariableFont_wght.ttf",
+    "zh_cn": "NotoSansSC-VariableFont_wght.ttf",
+    "ko_kr": "NotoSansKR-VariableFont_wght.ttf"
+  }
+}
