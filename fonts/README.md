@@ -9,6 +9,16 @@ Drop `.ttf`/`.otf` font files here. Three ways they get used, in priority order:
 3. **`Monocraft.ttf`** specifically, if present, is the default for any
    language with no `font_map.json` entry (i.e. Latin scripts).
 
+Within all of that, `load_font` also checks *actual glyph coverage* (via
+`fontTools`, not just "does the file exist") and skips a candidate that's
+missing a character the current text needs, falling through to the next
+one. This matters even for "Latin" languages: Monocraft has base Greek/
+Cyrillic letters but not, for example, precomposed accented Greek vowels
+(ά, έ, ή, ...) that appear in nearly every real Greek word -- without this
+check, Monocraft being present would silently break Greek even though a
+later candidate (Consolas) has full coverage, since it's earlier in
+`FONT_CANDIDATES` and "the file exists" used to be the only test.
+
 So for a language already in `font_map.json`, this just works:
 ```
 python generate_pack.py --language ja_jp --version 1.21.4

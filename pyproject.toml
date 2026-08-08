@@ -10,6 +10,7 @@ requires-python = ">=3.10"
 dependencies = [
     "Pillow>=10.0",
     "tqdm>=4.0",
+    "fontTools>=4.0",
 ]
 
 # Transliteration (--transliterate on generate_pack.py) needs a different
@@ -32,11 +33,13 @@ transliterate = [
 # `pip install -e .` has something to attach the dependency groups above to.
 [tool.setuptools]
 py-modules = [
+    "batch_generate",
     "build_block_textures",
     "fetch_jar",
     "fetch_lang",
     "generate_pack",
     "install_pack",
+    "make_contact_sheet",
     "make_lang_template",
     "mc_paths",
     "transliteration",

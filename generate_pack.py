@@ -142,20 +142,69 @@ MAX_LINES = 2
 MIN_FONT_SIZE = 10
 HARD_MIN_FONT_SIZE = 6
 
-_font_cache: dict[int, ImageFont.FreeTypeFont] = {}
+try:
+    from fontTools.ttLib import TTFont
+    _HAS_FONTTOOLS = True
+except ImportError:
+    _HAS_FONTTOOLS = False
+
+_cmap_cache: dict[str, set[int] | None] = {}
+_font_cache: dict[tuple[str, int], ImageFont.FreeTypeFont] = {}
 
 
-def load_font(size: int):
-    if size in _font_cache:
-        return _font_cache[size]
-    for path in FONT_CANDIDATES:
-        if os.path.isfile(path):
-            font = ImageFont.truetype(path, size)
-            _font_cache[size] = font
-            return font
-    font = ImageFont.load_default(size=size)
-    _font_cache[size] = font
-    return font
+def _font_covers(path: str, text: str) -> bool:
+    """True if `path` has a real glyph for every non-space character in
+    `text`. Without fontTools installed, assumes yes -- degrades to the old
+    "file exists = usable" behavior rather than blocking font selection
+    entirely; install fontTools (already in requirements.txt) for the real
+    check.
+
+    This exists because "the file exists on disk" and "it has the glyphs
+    this text needs" are different questions -- e.g. Monocraft.ttf has base
+    Greek letters (α, ω, ...) but not the precomposed accented forms
+    (ά, ή, ώ, ...) that appear in nearly every real Modern Greek word, so
+    picking it just because it exists silently produced tofu/missing glyphs
+    for Greek even though a later candidate (Consolas) has full coverage.
+    """
+    if not _HAS_FONTTOOLS:
+        return True
+    if path not in _cmap_cache:
+        try:
+            _cmap_cache[path] = set(TTFont(path, fontNumber=0, lazy=True).getBestCmap())
+        except Exception:
+            _cmap_cache[path] = None
+    cmap = _cmap_cache[path]
+    if cmap is None:
+        return True
+    return all(ord(ch) in cmap for ch in text if not ch.isspace())
+
+
+def load_font(size: int, text: str = ""):
+    """Returns a font for rendering `text` at `size`: the first
+    FONT_CANDIDATES entry that both exists on disk and actually covers every
+    character in `text`. If none fully cover it, falls back to the first
+    candidate that merely exists (better to render most of the text than
+    render nothing), then to Pillow's built-in default as the last resort.
+    """
+    candidates = [p for p in FONT_CANDIDATES if os.path.isfile(p)]
+
+    for path in candidates:
+        if not text or _font_covers(path, text):
+            key = (path, size)
+            if key not in _font_cache:
+                _font_cache[key] = ImageFont.truetype(path, size)
+            return _font_cache[key]
+
+    if candidates:
+        key = (candidates[0], size)
+        if key not in _font_cache:
+            _font_cache[key] = ImageFont.truetype(candidates[0], size)
+        return _font_cache[key]
+
+    key = ("__default__", size)
+    if key not in _font_cache:
+        _font_cache[key] = ImageFont.load_default(size=size)
+    return _font_cache[key]
 
 
 def _measure(draw, font, lines, stroke_width):
@@ -181,7 +230,7 @@ def _fit_text(draw: ImageDraw.ImageDraw, text: str, canvas_w: int, canvas_h: int
     font_size = max(MIN_FONT_SIZE, canvas_h // 5)
 
     while font_size > HARD_MIN_FONT_SIZE:
-        font = load_font(font_size)
+        font = load_font(font_size, text)
         stroke_width = max(1, font_size // 12)
         char_w = draw.textlength("M", font=font)
         max_chars = max(1, int((canvas_w * 0.9 - stroke_width * 2) / char_w))
@@ -198,7 +247,7 @@ def _fit_text(draw: ImageDraw.ImageDraw, text: str, canvas_w: int, canvas_h: int
 
     # Absolute last resort: even a single word doesn't fit at HARD_MIN_FONT_SIZE
     # on its own line. Only now allow a mid-word character break.
-    font = load_font(HARD_MIN_FONT_SIZE)
+    font = load_font(HARD_MIN_FONT_SIZE, text)
     stroke_width = max(1, HARD_MIN_FONT_SIZE // 12)
     char_w = draw.textlength("M", font=font)
     max_chars = max(1, int((canvas_w * 0.9 - stroke_width * 2) / char_w))
@@ -333,13 +382,13 @@ def _fit_single_line(draw, text: str, max_width: float, max_font_size: int, min_
     just shrinks until it fits max_width."""
     font_size = max_font_size
     while font_size > min_font_size:
-        font = load_font(font_size)
+        font = load_font(font_size, text)
         stroke_width = max(1, font_size // 12)
         width = draw.textlength(text, font=font) + stroke_width * 2
         if width <= max_width:
             return font, stroke_width
         font_size -= 1
-    return load_font(min_font_size), max(1, min_font_size // 12)
+    return load_font(min_font_size, text), max(1, min_font_size // 12)
 
 
 def _draw_centered_line(draw, text: str, canvas_w: int, y_center: float, max_font_size: int):

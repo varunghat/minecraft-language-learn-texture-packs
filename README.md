@@ -56,17 +56,17 @@ pip install -r requirements.txt
 ### 1. Get the game assets for your Minecraft version
 
 ```
-python fetch_jar.py --version 1.21.4
+python fetch_jar.py --version 26.2
 ```
 
 Downloads that version's client jar from Mojang and extracts
 `assets/minecraft/...` (`blockstates/`, `models/`, `textures/`, ...) into
-`jar/1.21.4/`. Only needs to be done once per version.
+`jar/26.2/`. Only needs to be done once per version.
 
 ### 2. Build the block/texture manifest (once per Minecraft version)
 
 ```
-python build_block_textures.py --version 1.21.4
+python build_block_textures.py --version 26.2
 ```
 
 ### 3. Get a translation file for your language
@@ -79,7 +79,7 @@ downloaded on demand by the launcher, once you've selected it in-game.
 2. Run:
 
 ```
-python fetch_lang.py --language de_de --version 1.21.4
+python fetch_lang.py --language de_de --version 26.2
 ```
 
 This finds the file in your `.minecraft` folder (auto-detected per OS,
@@ -113,8 +113,8 @@ identically either way -- it has no idea whether a file came from Mojang or
 from you.
 
 ```
-python build_block_textures.py --version 1.21.4   # needed first, if you haven't already
-python make_lang_template.py --version 1.21.4 --language tlh_aa
+python build_block_textures.py --version 26.2   # needed first, if you haven't already
+python make_lang_template.py --version 26.2 --language tlh_aa
 ```
 
 This creates a JSON file with one `"block.minecraft.<id>": ""` entry per
@@ -142,11 +142,11 @@ change the values directly, then rerun `generate_pack.py`.
 ### 4. Generate the pack
 
 ```
-python generate_pack.py --language de_de --version 1.21.4
+python generate_pack.py --language de_de --version 26.2 --scale 16
 ```
 
-Produces `output/language-learn-1.21.4-de_de/` (unzipped) and
-`output/language-learn-1.21.4-de_de.zip` -- the version is baked into the
+Produces `output/language-learn-26.2-de_de/` (unzipped) and
+`output/language-learn-26.2-de_de.zip` -- the version is baked into the
 name so packs for different versions (or different languages) don't
 overwrite each other. Blocks with no translation entry in the lang file are
 skipped and listed in the console output rather than silently mislabeled.
@@ -185,11 +185,11 @@ block regardless of content -- not built, since there's nothing to fix yet.
 #### Optional: review it before installing
 
 ```
-python make_contact_sheet.py --language de_de --version 1.21.4
+python make_contact_sheet.py --language de_de --version 26.2
 ```
 
 Lays out every stamped block as a before/after pair in a grid, written to
-`output/contact-sheets-1.21.4-de_de/sheet-01.png` (and further `sheet-02.png`
+`output/contact-sheets-26.2-de_de/sheet-01.png` (and further `sheet-02.png`
 etc. if there are more blocks than fit on one page -- `--per-page` controls
 how many, default 60). Useful for spotting font/wrapping/glyph problems
 across the whole pack in a couple of images instead of hunting through the
@@ -198,10 +198,10 @@ world in Minecraft block by block.
 ### 5. Install it
 
 ```
-python install_pack.py --language de_de --version 1.21.4
+python install_pack.py --language de_de --version 26.2
 ```
 
-Copies `output/language-learn-1.21.4-de_de.zip` into
+Copies `output/language-learn-26.2-de_de.zip` into
 `<.minecraft>/resourcepacks/` (auto-detected per OS, same as
 `fetch_lang.py`). Add `--move` to remove it from `output/` after copying
 instead of leaving it in place, or `--resourcepacks-dir` to install straight
@@ -246,13 +246,13 @@ Non-Latin scripts need a font with the right glyphs, but for `ja_jp`,
 to a font already in `fonts/`, so this just works with no extra flag:
 
 ```
-python generate_pack.py --language ja_jp --version 1.21.4
+python generate_pack.py --language ja_jp --version 26.2 --scale 16
 ```
 
 For a language not in that map yet, `--font` overrides everything:
 
 ```
-python generate_pack.py --language ar_sa --version 1.21.4 --font fonts/SomeArabicFont.ttf
+python generate_pack.py --language ar_sa --version 26.2 --scale 16 --font fonts/SomeArabicFont.ttf
 ```
 
 See [`fonts/README.md`](fonts/README.md) for what's already mapped, where to
@@ -285,7 +285,7 @@ pip install -e ".[transliterate]"  # all three
 Then:
 
 ```
-python generate_pack.py --language ja_jp --version 1.21.4 --transliterate
+python generate_pack.py --language ja_jp --version 26.2 --scale 16 --transliterate
 ```
 
 `--transliterate` on a language with no romanization registered (anything
