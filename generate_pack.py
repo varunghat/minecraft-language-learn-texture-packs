@@ -264,16 +264,68 @@ def resolve_paths(version: str, language: str) -> dict:
     }
 
 
-def write_pack_mcmeta(pack_root: Path, language: str, pack_format: int):
+def write_pack_mcmeta(pack_root: Path, language: str, pack_format: int, extra_languages: dict | None = None):
     mcmeta = {
         "pack": {
             "pack_format": pack_format,
             "description": f"Block labels for language learning ({language})",
         }
     }
+    if extra_languages:
+        # Registers brand-new selectable entries in Minecraft's own Options >
+        # Language list (distinct from just overriding an existing code's
+        # lang file) -- this is what actually lets someone choose "Bilingual"
+        # vs "Romanization" in-game, not just have their real language's
+        # tooltips silently altered.
+        mcmeta["language"] = extra_languages
     (pack_root / "pack.mcmeta").write_text(
         json.dumps(mcmeta, indent=2, ensure_ascii=False), encoding="utf-8"
     )
+
+
+def write_translit_lang_variants(
+    pack_root: Path, language: str, block_labels: dict[str, tuple[str, str | None]]
+) -> dict:
+    """Writes two extra selectable languages into the pack, mirroring the
+    reference Chinese pack's "characters + pinyin" / "pinyin only" choice,
+    generalized to any language with a registered transliterator:
+
+    - "<prefix>_bi": bilingual, "<word> (<translit>)" per block
+    - "<prefix>_ro": romanization only, just "<translit>" per block
+
+    `block_labels` is {block_id: (word, translit_or_None)} -- a block with
+    no distinct transliteration (translit is None, e.g. no transliterator
+    matched, or it came back the same as the word) falls back to showing
+    just the word in both variants rather than an empty/duplicate string.
+
+    Returns the pack.mcmeta "language" registration dict for these two
+    codes, so tooltips/inventory/chat show the same text once selected --
+    Minecraft renders whatever's in the active lang file everywhere, not
+    just in a texture.
+    """
+    prefix = language.split("_")[0]
+    bilingual_code, romanization_code = f"{prefix}_bi", f"{prefix}_ro"
+
+    bilingual, romanization = {}, {}
+    for block_id, (word, translit) in block_labels.items():
+        key = f"block.minecraft.{block_id}"
+        bilingual[key] = f"{word} ({translit})" if translit else word
+        romanization[key] = translit or word
+
+    lang_dir = pack_root / "assets" / "minecraft" / "lang"
+    lang_dir.mkdir(parents=True, exist_ok=True)
+    (lang_dir / f"{bilingual_code}.json").write_text(
+        json.dumps(bilingual, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+    (lang_dir / f"{romanization_code}.json").write_text(
+        json.dumps(romanization, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+
+    base_name = ENGLISH_LANGUAGE_NAMES.get(language, language)
+    return {
+        bilingual_code: {"name": f"{base_name} (Bilingual)", "region": "Language Learning", "bidirectional": False},
+        romanization_code: {"name": f"{base_name} (Romanization)", "region": "Language Learning", "bidirectional": False},
+    }
 
 
 def _fit_single_line(draw, text: str, max_width: float, max_font_size: int, min_font_size: int = 8):
@@ -383,7 +435,10 @@ def main():
              "Romanization (ko_kr). Needs extra dependencies -- see "
              "pyproject.toml's [project.optional-dependencies], e.g. "
              "`pip install -e \".[ja]\"`. A no-op (word only, no error) for "
-             "any other language.",
+             "any other language. Also writes two extra selectable languages "
+             "into the pack (<prefix>_bi bilingual, <prefix>_ro romanization-"
+             "only) so tooltips/inventory/chat show the same text once picked "
+             "in Options > Language -- not just the block textures.",
     )
     args = parser.parse_args()
     paths = resolve_paths(args.version, args.language)
@@ -431,12 +486,26 @@ def main():
     written: set[str] = set()
     skipped_no_translation: list[str] = []
     stamped = 0
+    # {block_id: (word, translit_or_None)} -- populated once per block (not
+    # once per texture stem) since transliteration only depends on the word,
+    # and reused below to write the bilingual/romanization lang variants.
+    block_labels: dict[str, tuple[str, str | None]] = {}
 
     for block_id in tqdm(sorted(blocks)):
         word = lang.get(f"block.minecraft.{block_id}")
         if not word:
             skipped_no_translation.append(block_id)
             continue
+
+        translit = None
+        if transliterator:
+            try:
+                translit = transliterator(word)
+            except MissingTransliterationDependency as e:
+                raise SystemExit(str(e))
+        if translit and translit.strip().lower() == word.strip().lower():
+            translit = None
+        block_labels[block_id] = (word, translit)
 
         for stem in blocks[block_id]:
             if stem in written:
@@ -450,19 +519,7 @@ def main():
 
             img = Image.open(src_path).convert("RGBA")
             img = img.resize((img.width * args.scale, img.height * args.scale), Image.NEAREST)
-
-            translit = None
-            if transliterator:
-                try:
-                    translit = transliterator(word)
-                except MissingTransliterationDependency as e:
-                    raise SystemExit(str(e))
-
-            if translit and translit.strip().lower() != word.strip().lower():
-                img = stamp_lines(img, [word, translit])
-            else:
-                img = stamp_text(img, word)
-
+            img = stamp_lines(img, [word, translit]) if translit else stamp_text(img, word)
             img.save(output_dir / f"{stem}.png")
 
             written.add(stem)
@@ -475,7 +532,13 @@ def main():
         more = " ..." if len(skipped_no_translation) > 20 else ""
         print(f"No '{args.language}' translation, skipped: {preview}{more}")
 
-    write_pack_mcmeta(paths["pack_root"], args.language, pack_format)
+    extra_languages = None
+    if transliterator and block_labels:
+        extra_languages = write_translit_lang_variants(paths["pack_root"], args.language, block_labels)
+        codes = ", ".join(extra_languages)
+        print(f"Wrote extra selectable languages ({codes}) for tooltips/inventory/chat.")
+
+    write_pack_mcmeta(paths["pack_root"], args.language, pack_format, extra_languages)
     write_pack_icon(paths["pack_root"], paths["jar_textures"], args.language, lang)
     zip_pack(paths["pack_root"], paths["zip_path"])
     print(f"Wrote {paths['pack_root']} and {paths['zip_path']}")

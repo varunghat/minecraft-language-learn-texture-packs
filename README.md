@@ -285,7 +285,7 @@ pip install -e ".[transliterate]"  # all three
 Then:
 
 ```
-python generate_pack.py --language ja_jp --version 1.21.4 --font fonts/NotoSansJP-VariableFont_wght.ttf --transliterate
+python generate_pack.py --language ja_jp --version 1.21.4 --transliterate
 ```
 
 `--transliterate` on a language with no romanization registered (anything
@@ -293,3 +293,21 @@ other than the three above) is a harmless no-op -- word-only, same as
 without the flag, not an error. If the matching library isn't installed,
 you get a clear message telling you which `pip install -e ".[...]"` to run,
 not a raw traceback.
+
+### Bilingual/romanization-only language variants
+
+`--transliterate` also writes two extra *selectable languages* into the
+pack itself -- not just onto the block textures -- mirroring how the
+reference Chinese pack offers "characters + pinyin" and "pinyin only" as
+separate choices:
+
+- `<prefix>_bi` -- bilingual, e.g. `"石 (shí)"`
+- `<prefix>_ro` -- romanization only, e.g. `"shí"`
+
+(`<prefix>` is the base language code's first part -- `zh` for `zh_cn`,
+`ja` for `ja_jp`, `ko` for `ko_kr`.) These show up in Minecraft's own
+**Options > Language** list once the pack is enabled, alongside the normal
+`zh_cn`/`ja_jp`/`ko_kr` (untouched). Since Minecraft renders whatever's in
+the selected language file everywhere, picking one of these two makes
+tooltips, inventory, and chat show the bilingual/romanized text too, not
+just the labeled block textures.

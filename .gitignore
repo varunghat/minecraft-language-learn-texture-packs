@@ -1,0 +1,15 @@
+# Extracted Minecraft client assets (fetch_jar.py) -- large, and it's
+# Mojang's copyrighted game data, not something to publish in this repo.
+# Everyone who clones this regenerates it themselves with fetch_jar.py.
+jar/
+
+# Generated packs -- reproducible from source + your own local Minecraft
+# install via generate_pack.py. Publish specific built .zip files as
+# GitHub Release assets instead of committing the whole output/ folder.
+output/
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
