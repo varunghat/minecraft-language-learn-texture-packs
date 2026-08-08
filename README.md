@@ -6,6 +6,12 @@ also teaches you the word for it.
 
 Inspired by [chinese-for-learners-minecraft-language-pack](https://github.com/LAntoine/chinese-for-learners-minecraft-language-pack).
 
+## Screenshots
+
+| Japanese (`ja_jp`) | Korean (`ko_kr`) |
+|---|---|
+| ![Japanese labels in-game](images/screenshot_ja.png) | ![Korean labels in-game](images/screenshot_ko.png) |
+
 ## How it works
 
 1. **`fetch_jar.py`** downloads a Minecraft version's client jar straight
@@ -280,9 +286,3 @@ other than the three above) is a harmless no-op -- word-only, same as
 without the flag, not an error. If the matching library isn't installed,
 you get a clear message telling you which `pip install -e ".[...]"` to run,
 not a raw traceback.
-
-## Current limitations
-- **No transliteration/orthography variants yet** (e.g. pinyin alongside
-  Chinese characters, like the reference pack). Only whatever single string
-  the official lang file provides per block gets stamped.
-- **Blocks only.** Items, entities, and GUI textures aren't touched.
