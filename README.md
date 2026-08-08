@@ -24,7 +24,10 @@ Inspired by [chinese-for-learners-minecraft-language-pack](https://github.com/LA
    a fill-in-the-blanks lang file to that same path instead.
 4. **`generate_pack.py`** stamps the translated word onto each labeled
    texture (auto-shrinking/wrapping the font to fit) and zips the result into
-   a resource pack.
+   a resource pack. **`make_contact_sheet.py`** is optional here -- it lays
+   out before/after images of a whole generated pack into a grid so you can
+   review font sizing/wrapping/glyph issues across every block at once,
+   without launching Minecraft.
 5. **`install_pack.py`** copies that zip into Minecraft's `resourcepacks/`
    folder for you.
 
@@ -152,6 +155,40 @@ when the lang file has one, its native name from its own `language.name`
 key (e.g. "German" / "Deutsch") -- so the pack is identifiable in Minecraft's
 resource pack list instead of showing a generic icon.
 
+#### Texture resolution
+
+Each 16x16 source texture is upscaled `--scale` times (nearest-neighbor, so
+the pixel art stays crisp, not blurry) before text gets stamped on, giving
+the label room to be legible. Default is `--scale 16` -> 256x256 output.
+Bump it for more room (e.g. `--scale 32` -> 512x512) or drop it for smaller
+files (e.g. `--scale 8` -> 128x128, this project's original default).
+
+Worth knowing: a resource pack's block textures all get loaded into
+Minecraft's texture atlas, and this is a *labeled-block* pack -- every block
+this project touches (potentially several hundred) ships at the chosen
+resolution, not just a handful. This is the same tradeoff any "HD" texture
+pack makes: higher resolution means more texture memory and longer atlas/
+mipmap generation, which can mean longer world-load times or stutter on
+lower-end GPUs. Nobody's benchmarked this yet for this project specifically
+-- if `--scale 16` turns out to be noticeably heavy in practice, the next
+step would be sizing textures per-block based on how much text actually
+needs to fit (a short word like "Erde" doesn't need the same resolution as
+something that wraps to two lines) rather than one fixed scale for every
+block regardless of content -- not built, since there's nothing to fix yet.
+
+#### Optional: review it before installing
+
+```
+python make_contact_sheet.py --language de_de --version 1.21.4
+```
+
+Lays out every stamped block as a before/after pair in a grid, written to
+`output/contact-sheets-1.21.4-de_de/sheet-01.png` (and further `sheet-02.png`
+etc. if there are more blocks than fit on one page -- `--per-page` controls
+how many, default 60). Useful for spotting font/wrapping/glyph problems
+across the whole pack in a couple of images instead of hunting through the
+world in Minecraft block by block.
+
 ### 5. Install it
 
 ```
@@ -169,6 +206,27 @@ Then in Minecraft: **Options > Resource Packs**, enable it from the list.
 
 Alternatively, skip the script and drag the `.zip` yourself into **Options >
 Resource Packs > Open Pack Folder**.
+
+### Beyond blocks: items, verbs
+
+This project deliberately only labels blocks, not items or verbs:
+
+- **Items**: skipped on purpose, not just unimplemented. Item names are
+  already exposed via their tooltip whenever the game itself is set to your
+  target language (Options > Language) -- no custom pack needed for that.
+  Blocks don't have that: you only see a block's name in a tooltip while
+  it's in your inventory, not while it's placed and you're looking at it in
+  the world, which is the actual gap this project fills. A held/actively-used
+  item (a pickaxe you're swinging for ten minutes) would also just be visual
+  noise if labeled.
+- **Verbs/actions**: turn on **Options > Accessibility > Subtitles** (with
+  the game set to your target language) instead of expecting a texture pack
+  to help here. Minecraft already ships professionally-translated subtitle
+  text tied to real gameplay events (`"subtitles.block.generic.break":
+  "Block broken"`, `"subtitles.entity.player.attack.crit": "Critical
+  attack"`, ...) for every supported language -- that's the actual built-in
+  mechanism for action/verb vocabulary, not something a static image pack
+  could replicate.
 
 ## Fonts
 

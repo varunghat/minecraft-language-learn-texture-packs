@@ -18,6 +18,7 @@ Usage:
     python generate_pack.py --language es_es --version 1.20.6
     python generate_pack.py --language ja_jp --version 1.21.4 --font fonts/NotoSansJP-VariableFont_wght.ttf
     python generate_pack.py --language ja_jp --version 1.21.4 --font fonts/NotoSansJP-VariableFont_wght.ttf --transliterate
+    python generate_pack.py --language de_de --version 1.21.4 --scale 32   # 16x16 source -> 512x512 output
 """
 
 import argparse
@@ -32,7 +33,11 @@ from tqdm import tqdm
 
 from transliteration import MissingTransliterationDependency, get_transliterator
 
-SCALE = 8  # 16x16 source -> 128x128 output, nearest-neighbor (keeps pixel art crisp)
+# Multiplier applied to each 16x16 source texture, nearest-neighbor (keeps
+# pixel art crisp). Higher = more room for legible text, but also more
+# texture memory for Minecraft to load -- see --scale's help text and the
+# README's "Texture resolution" section for the tradeoff.
+DEFAULT_SCALE = 16
 
 # Approximate Minecraft plains-biome grass green, used to tint the pack icon
 # base texture (see render_pack_icon). grass_block_top.png is deliberately a
@@ -341,6 +346,14 @@ def main():
              "(auto-picked from --version when known; required if not).",
     )
     parser.add_argument(
+        "--scale", type=int, default=DEFAULT_SCALE,
+        help=f"Upscale multiplier applied to each 16x16 source texture, e.g. "
+             f"--scale 16 -> 256x256 output (default: {DEFAULT_SCALE} -> "
+             f"{DEFAULT_SCALE * 16}x{DEFAULT_SCALE * 16}). Higher gives text more "
+             f"room but increases texture memory Minecraft has to load for every "
+             f"labeled block -- see the README's 'Texture resolution' section.",
+    )
+    parser.add_argument(
         "--font", type=Path, default=None,
         help="Path to a specific .ttf/.otf font to stamp text with, overriding "
              "auto-detection. Required for non-Latin scripts (CJK, Cyrillic, "
@@ -417,7 +430,7 @@ def main():
                 continue
 
             img = Image.open(src_path).convert("RGBA")
-            img = img.resize((img.width * SCALE, img.height * SCALE), Image.NEAREST)
+            img = img.resize((img.width * args.scale, img.height * args.scale), Image.NEAREST)
 
             translit = None
             if transliterator:
